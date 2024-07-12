@@ -1,58 +1,122 @@
+using System.Collections;
 using UnityEngine;
 
-/// <summary>
-/// Detects collisions with objects tagged as "Carriable" and "Punchable".
-/// Adds "Carriable" objects to the CharacterMovement's list of carried objects.
-/// Punches "Punchable" objects, applies a force opposite to the player, makes it go ragdoll, and changes its tag to "Carriable" after 1 second.
-/// </summary>
 public class PlayerCollider : MonoBehaviour {
     [SerializeField] private CharacterMovement characterMovement;
+    [SerializeField] private float punchForce = 10f;
+    [SerializeField] private string punchableTag = "Punchable";
+    [SerializeField] private string carriableTag = "Carriable";
+    [SerializeField] private string floorTag = "floor";
+    [SerializeField] private float changeTagTime = 2.0f;
+    [SerializeField] private float upwardPunchForce = 5f;
 
     private void Start() {
-        if (characterMovement == null) characterMovement = transform.GetComponent<CharacterMovement>();
-    }
-
-    /// <summary>
-    /// Triggered when another collider enters the trigger collider of this object.
-    /// Handles "Carriable" objects by adding them to the CharacterMovement's carried objects list.
-    /// Punches "Punchable" objects by applying a force opposite to the player, making it go ragdoll, and changing its tag to "Carriable" after 1 second.
-    /// </summary>
-    /// <param name="other">The Collider of the other object that entered the trigger.</param>
-    private void OnTriggerEnter(Collider other) {
-        if (other.CompareTag("Carriable")) {
-            if (other.attachedRigidbody != null) {
-                characterMovement.AddCarriedObject(other.transform);
-            }
-        } else if (other.CompareTag("Punchable")) {
-            Rigidbody rb = other.attachedRigidbody;
-            if (rb != null) {
-                // Calculate opposite force direction relative to the player
-                Vector3 forceDirection = other.transform.position - transform.position;
-                forceDirection.Normalize();
-
-                // Apply force to the Punchable object
-                rb.AddForce(forceDirection * 10f, ForceMode.Impulse);
-
-                // Make the Punchable object go ragdoll (if it has a Ragdoll component, adjust accordingly)
-                RagdollController ragdollController = other.GetComponent<RagdollController>();
-                if (ragdollController != null) {
-                    ragdollController.SetRagdollEnabled(true);
-                }
-
-                // Change the tag of the Punchable object to "Carriable" after 1 second
-                StartCoroutine(ChangeTagDelayed(other.gameObject, "Carriable", 1f));
-            }
+        if (characterMovement == null) {
+            characterMovement = GetComponent<CharacterMovement>();
         }
     }
 
-    /// <summary>
-    /// Changes the tag of the specified GameObject after a delay.
-    /// </summary>
-    /// <param name="gameObject">The GameObject whose tag should be changed.</param>
-    /// <param name="newTag">The new tag to assign to the GameObject.</param>
-    /// <param name="delay">The delay (in seconds) before changing the tag.</param>
-    private System.Collections.IEnumerator ChangeTagDelayed(GameObject gameObject, string newTag, float delay) {
+    private void OnCollisionEnter(Collision other) {
+        if (other.collider.CompareTag(floorTag)) return;
+
+        GameObject parentObject = GetTopmostParentWithTag(other.gameObject, punchableTag, carriableTag);
+        if (parentObject == null) return;
+
+        Rigidbody parentRigidbody = parentObject.GetComponent<Rigidbody>();
+        if (parentObject.CompareTag(carriableTag)) {
+            HandleCarriableObject(parentObject, parentRigidbody);
+        } else if (parentObject.CompareTag(punchableTag)) {
+            HandlePunchableObject(parentObject);
+        }
+    }
+
+    private void HandleCarriableObject(GameObject parentObject, Rigidbody parentRigidbody) {
+        Animator animator = parentObject.GetComponentInChildren<Animator>();
+        if (animator != null) animator.enabled = true;
+
+        if (parentRigidbody == null) {
+            parentRigidbody = parentObject.AddComponent<Rigidbody>();
+        }
+
+        ResetRigidbodyForces(parentObject);
+        DisableAllColliders(parentObject);
+        DisableHipsGameObject(parentObject);
+
+        characterMovement.AddCarriedObject(parentRigidbody);
+        parentRigidbody.useGravity = false;
+    }
+
+    private void HandlePunchableObject(GameObject punchableObject) {
+        Rigidbody spineRb = GetRigidbodyByName(punchableObject, "mixamorig:Spine1");
+        if (spineRb != null) {
+            ApplyPunchForce(spineRb, punchableObject.transform.position - transform.position);
+
+            Animator animator = punchableObject.GetComponentInChildren<Animator>();
+            if (animator != null) {
+                animator.enabled = false;
+            }
+
+            StartCoroutine(ChangeTagDelayed(punchableObject, carriableTag, changeTagTime));
+        } else {
+            Debug.Log("Rigidbody 'mixamorig:Spine1' not found in punchable object.");
+        }
+    }
+
+    private void ApplyPunchForce(Rigidbody spineRb, Vector3 forceDirection) {
+        forceDirection.Normalize();
+        Vector3 punchForceDirection = forceDirection * punchForce + Vector3.up * upwardPunchForce;
+        spineRb.AddForce(punchForceDirection, ForceMode.Impulse);
+
+        Quaternion lookRotation = Quaternion.LookRotation(-forceDirection);
+        spineRb.transform.rotation = lookRotation;
+    }
+
+    private void ResetRigidbodyForces(GameObject obj) {
+        foreach (var rb in obj.GetComponentsInChildren<Rigidbody>()) {
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.Sleep();
+        }
+    }
+
+    private void DisableAllColliders(GameObject obj) {
+        foreach (var col in obj.GetComponentsInChildren<Collider>()) {
+            col.enabled = false;
+        }
+    }
+
+    private void DisableHipsGameObject(GameObject obj) {
+        Transform hipsTransform = obj.transform.Find("mixamorig:Hips");
+        if (hipsTransform != null) {
+            hipsTransform.gameObject.SetActive(false);
+        }
+    }
+
+    private IEnumerator ChangeTagDelayed(GameObject gameObject, string newTag, float delay) {
         yield return new WaitForSeconds(delay);
         gameObject.tag = newTag;
+    }
+
+    private GameObject GetTopmostParentWithTag(GameObject obj, params string[] tags) {
+        Transform current = obj.transform;
+        Transform topmostParent = current;
+
+        while (current.parent != null) {
+            current = current.parent;
+            if (System.Array.Exists(tags, tag => current.CompareTag(tag))) {
+                topmostParent = current;
+            }
+        }
+
+        return System.Array.Exists(tags, tag => topmostParent.CompareTag(tag)) ? topmostParent.gameObject : null;
+    }
+
+    private Rigidbody GetRigidbodyByName(GameObject obj, string name) {
+        foreach (var rb in obj.GetComponentsInChildren<Rigidbody>()) {
+            if (rb.name == name) {
+                return rb;
+            }
+        }
+        return null;
     }
 }
