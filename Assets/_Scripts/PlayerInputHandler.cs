@@ -1,10 +1,9 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public enum State { idle, walking, carrying }
-
 public class PlayerInputHandler : MonoBehaviour {
     private PlayerControlls controller;
+
     public Vector2 InputDirection { get; private set; }
 
     private void Awake() {
@@ -22,7 +21,6 @@ public class PlayerInputHandler : MonoBehaviour {
         controller.Player.Move.performed -= OnMovePerformed;
         controller.Player.Move.canceled -= OnMoveCanceled;
     }
-
 
     private void OnMovePerformed(InputAction.CallbackContext context) {
         InputDirection = context.ReadValue<Vector2>();

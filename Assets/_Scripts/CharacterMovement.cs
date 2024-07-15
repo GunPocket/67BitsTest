@@ -12,27 +12,41 @@ public class Particle {
 }
 
 public class CharacterMovement : MonoBehaviour {
-    private Vector3 playerVelocity;
+    [Header("Player Settings")]
     [SerializeField] private float playerSpeed = 2.0f;
+    [SerializeField] private Material playerMaterial;
+    public Animator PlayerAnimator;
 
-    [Header("Needed references")]
+    [Header("Needed References")]
     [SerializeField] private Rigidbody rb;
     [SerializeField] private Camera mainCamera;
     [SerializeField] private PlayerInputHandler inputHandler;
 
-    [Header("List of carried objects")]
+    [Header("List of Carried Objects")]
     [SerializeField] private List<Particle> particles = new();
-    [SerializeField] private List<Rigidbody> carriedObjects = new();
+    public List<Rigidbody> CarriedObjects = new();
 
-    [Header("Stacking settings")]
+    [Header("Stacking Settings")]
     [SerializeField] private float segmentDistance = 1.0f;
     [SerializeField] private float upwardForce = 10.0f;
     [SerializeField][Range(0, 1)] private float upwardForceDamping = 0.1f;
+    [SerializeField] private int maxStack = 1;
+
+    private Vector3 playerVelocity;
+
+    public int MaxStack {
+        get => maxStack;
+        set {
+            maxStack = value;
+            UpdatePlayerColor();
+        }
+    }
 
     private void Start() {
-        if (inputHandler == null) inputHandler = GetComponent<PlayerInputHandler>();
-        if (mainCamera == null) mainCamera = Camera.main;
-        if (rb == null) rb = GetComponent<Rigidbody>();
+        inputHandler = inputHandler != null ? inputHandler : GetComponent<PlayerInputHandler>();
+        mainCamera = mainCamera != null ? mainCamera : Camera.main;
+        rb = rb != null ? rb : GetComponent<Rigidbody>();
+        PlayerAnimator = PlayerAnimator != null ? PlayerAnimator : GetComponent<Animator>();
 
         InitializeParticles();
     }
@@ -49,7 +63,7 @@ public class CharacterMovement : MonoBehaviour {
         Vector3 startPosition = transform.position + Vector3.up * segmentDistance;
         particles.Clear();
         particles.Add(new Particle(startPosition));
-        for (int i = 0; i < carriedObjects.Count; i++) {
+        for (int i = 0; i < CarriedObjects.Count; i++) {
             particles.Add(new Particle(startPosition + (i + 1) * segmentDistance * Vector3.up));
         }
     }
@@ -69,14 +83,17 @@ public class CharacterMovement : MonoBehaviour {
         if (direction != Vector2.zero) {
             Quaternion targetRotation = Quaternion.LookRotation(playerVelocity);
             rb.MoveRotation(targetRotation);
+            PlayerAnimator.SetBool("Idle", false);
+        } else {
+            PlayerAnimator.SetBool("Idle", true);
         }
 
-        particles[0].position = transform.position + Vector3.up * segmentDistance;
+        if (particles.Count > 0) {
+            particles[0].position = transform.position + Vector3.up * segmentDistance;
+        }
     }
 
     private void UpdateParticles() {
-        //Using Verlet Integration
-
         for (int i = 1; i < particles.Count; i++) {
             Particle current = particles[i];
             Particle previous = particles[i - 1];
@@ -84,9 +101,8 @@ public class CharacterMovement : MonoBehaviour {
             Vector3 direction = (current.position - previous.position).normalized;
             Vector3 targetPosition = previous.position + direction * segmentDistance;
 
-            Vector3 newPosition = targetPosition;
             current.previousPosition = current.position;
-            current.position = newPosition;
+            current.position = targetPosition;
         }
     }
 
@@ -98,9 +114,9 @@ public class CharacterMovement : MonoBehaviour {
     }
 
     private void PositionCarriedObjects() {
-        for (int i = 0; i < carriedObjects.Count; i++) {
+        for (int i = 0; i < CarriedObjects.Count; i++) {
             if (i + 1 < particles.Count) {
-                carriedObjects[i].MovePosition(particles[i + 1].position);
+                CarriedObjects[i].MovePosition(particles[i + 1].position);
             }
         }
     }
@@ -108,25 +124,37 @@ public class CharacterMovement : MonoBehaviour {
     private void RotateCarriedObjects() {
         Quaternion playerRotation = rb.rotation;
 
-        for (int i = 0; i < carriedObjects.Count; i++) {
-            carriedObjects[i].MoveRotation(playerRotation * Quaternion.Euler(90, 0, -90));
+        for (int i = 0; i < CarriedObjects.Count; i++) {
+            CarriedObjects[i].MoveRotation(playerRotation * Quaternion.Euler(90, 0, -90));
         }
     }
 
     public void AddCarriedObject(Rigidbody newObject) {
-        carriedObjects.Add(newObject);
-
+        CarriedObjects.Add(newObject);
         InitializeParticles();
     }
 
-    public void RemoveCarriedObject(Rigidbody oldObject) {
-        int index = carriedObjects.IndexOf(oldObject);
-        if (index >= 0) {
-            carriedObjects.RemoveAt(index);
-            if (index + 1 < particles.Count) {
-                particles.RemoveAt(index + 1); // Remove corresponding particle
-            }
+    public void RemoveCarriedObjects() {
+        foreach (Rigidbody co in CarriedObjects) {
+            Destroy(co.gameObject);
         }
-        oldObject.transform.SetParent(null);
+
+        CarriedObjects.Clear();
+        particles.Clear();
+        InitializeParticles();
+    }
+
+    public void UpdatePlayerColor() {
+        Color newColor = CalculateColor(MaxStack);
+        playerMaterial.color = newColor;
+    }
+
+    private Color CalculateColor(int maxStack) {
+        float hue = (maxStack % 360) / 15f;
+        return Color.HSVToRGB(hue, 1f, 1f);
+    }
+
+    public void IncreaseMaxStack() {
+        MaxStack++;
     }
 }

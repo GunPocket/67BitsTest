@@ -2,17 +2,33 @@ using System.Collections;
 using UnityEngine;
 
 public class PlayerCollider : MonoBehaviour {
+    [Header("References")]
     [SerializeField] private CharacterMovement characterMovement;
+    [SerializeField] private Animator animator;
+    [SerializeField] private UIController uiController;
+
+    [Header("Settings")]
     [SerializeField] private float punchForce = 10f;
+    [SerializeField] private float changeTagTime = 2.0f;
+    [SerializeField] private int sellValue = 100;
+
+    [Header("Tags")]
     [SerializeField] private string punchableTag = "Punchable";
     [SerializeField] private string carriableTag = "Carriable";
+    [SerializeField] private string dropTag = "Drop";
     [SerializeField] private string floorTag = "floor";
-    [SerializeField] private float changeTagTime = 2.0f;
-    [SerializeField] private float upwardPunchForce = 5f;
 
     private void Start() {
         if (characterMovement == null) {
             characterMovement = GetComponent<CharacterMovement>();
+        }
+
+        if (animator == null) {
+            animator = characterMovement.PlayerAnimator;
+        }
+
+        if (uiController == null) {
+            uiController = FindAnyObjectByType<UIController>();
         }
     }
 
@@ -23,16 +39,25 @@ public class PlayerCollider : MonoBehaviour {
         if (parentObject == null) return;
 
         Rigidbody parentRigidbody = parentObject.GetComponent<Rigidbody>();
-        if (parentObject.CompareTag(carriableTag)) {
+        if (parentObject.CompareTag(carriableTag) && characterMovement.MaxStack > characterMovement.CarriedObjects.Count) {
             HandleCarriableObject(parentObject, parentRigidbody);
         } else if (parentObject.CompareTag(punchableTag)) {
             HandlePunchableObject(parentObject);
         }
     }
 
+    private void OnTriggerEnter(Collider other) {
+        if (other.CompareTag(dropTag) && characterMovement.CarriedObjects.Count > 0) {
+            int moneyEarned = sellValue * characterMovement.CarriedObjects.Count;
+            characterMovement.RemoveCarriedObjects();
+            uiController.UpdateMoney(moneyEarned);
+            characterMovement.UpdatePlayerColor();
+        }
+    }
+
     private void HandleCarriableObject(GameObject parentObject, Rigidbody parentRigidbody) {
-        Animator animator = parentObject.GetComponentInChildren<Animator>();
-        if (animator != null) animator.enabled = true;
+        Animator parentAnimator = parentObject.GetComponentInChildren<Animator>();
+        if (parentAnimator != null) parentAnimator.enabled = true;
 
         if (parentRigidbody == null) {
             parentRigidbody = parentObject.AddComponent<Rigidbody>();
@@ -49,22 +74,23 @@ public class PlayerCollider : MonoBehaviour {
     private void HandlePunchableObject(GameObject punchableObject) {
         Rigidbody spineRb = GetRigidbodyByName(punchableObject, "mixamorig:Spine1");
         if (spineRb != null) {
-            ApplyPunchForce(spineRb, punchableObject.transform.position - transform.position);
-
-            Animator animator = punchableObject.GetComponentInChildren<Animator>();
-            if (animator != null) {
-                animator.enabled = false;
+            Animator punchableAnimator = punchableObject.GetComponentInChildren<Animator>();
+            if (punchableAnimator != null) {
+                punchableAnimator.enabled = false;
             }
 
+            ApplyPunchForce(spineRb, punchableObject.transform.position - transform.position);
+
             StartCoroutine(ChangeTagDelayed(punchableObject, carriableTag, changeTagTime));
-        } else {
-            Debug.Log("Rigidbody 'mixamorig:Spine1' not found in punchable object.");
         }
+
+        // Trigger punch animation
+        animator.SetTrigger("Punch");
     }
 
     private void ApplyPunchForce(Rigidbody spineRb, Vector3 forceDirection) {
         forceDirection.Normalize();
-        Vector3 punchForceDirection = forceDirection * punchForce + Vector3.up * upwardPunchForce;
+        Vector3 punchForceDirection = -forceDirection * punchForce + Vector3.up;
         spineRb.AddForce(punchForceDirection, ForceMode.Impulse);
 
         Quaternion lookRotation = Quaternion.LookRotation(-forceDirection);

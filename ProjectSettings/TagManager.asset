@@ -7,11 +7,12 @@ TagManager:
   - Carriable
   - Punchable
   - floor
+  - Drop
   layers:
   - Default
   - TransparentFX
   - Ignore Raycast
-  - 
+  - Ragdoll
   - Water
   - UI
   - 
