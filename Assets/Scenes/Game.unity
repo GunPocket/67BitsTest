@@ -1965,6 +1965,11 @@ PrefabInstance:
       propertyPath: playerSpeed
       value: 4
       objectReference: {fileID: 0}
+    - target: {fileID: 7653088433049110907, guid: 56c14300b5301864d9b4079b51bca4a9,
+        type: 3}
+      propertyPath: segmentDistance
+      value: 3.1
+      objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 5243263315868187032, guid: 56c14300b5301864d9b4079b51bca4a9, type: 3}
     m_RemovedGameObjects: []

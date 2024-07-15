@@ -115,7 +115,7 @@ public class CharacterMovement : MonoBehaviour {
 
     private void PositionCarriedObjects() {
         for (int i = 0; i < CarriedObjects.Count; i++) {
-            if (i + 1 < particles.Count) {
+            if (i + 1 < particles.Count && CarriedObjects[i] != null) {
                 CarriedObjects[i].MovePosition(particles[i + 1].position);
             }
         }
@@ -125,7 +125,9 @@ public class CharacterMovement : MonoBehaviour {
         Quaternion playerRotation = rb.rotation;
 
         for (int i = 0; i < CarriedObjects.Count; i++) {
-            CarriedObjects[i].MoveRotation(playerRotation * Quaternion.Euler(90, 0, -90));
+            if (CarriedObjects[i] != null) {
+                CarriedObjects[i].MoveRotation(playerRotation * Quaternion.Euler(90, 0, -90));
+            }
         }
     }
 
@@ -136,7 +138,9 @@ public class CharacterMovement : MonoBehaviour {
 
     public void RemoveCarriedObjects() {
         foreach (Rigidbody co in CarriedObjects) {
-            Destroy(co.gameObject);
+            if (co != null) {
+                Destroy(co.gameObject);
+            }
         }
 
         CarriedObjects.Clear();

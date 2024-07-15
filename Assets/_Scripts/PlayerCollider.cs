@@ -19,17 +19,9 @@ public class PlayerCollider : MonoBehaviour {
     [SerializeField] private string floorTag = "floor";
 
     private void Start() {
-        if (characterMovement == null) {
-            characterMovement = GetComponent<CharacterMovement>();
-        }
-
-        if (animator == null) {
-            animator = characterMovement.PlayerAnimator;
-        }
-
-        if (uiController == null) {
-            uiController = FindAnyObjectByType<UIController>();
-        }
+        characterMovement = characterMovement != null ? characterMovement : GetComponent<CharacterMovement>();
+        animator = animator != null ? animator : characterMovement.PlayerAnimator;
+        uiController = uiController != null ? uiController : FindAnyObjectByType<UIController>();
     }
 
     private void OnCollisionEnter(Collision other) {
@@ -59,9 +51,7 @@ public class PlayerCollider : MonoBehaviour {
         Animator parentAnimator = parentObject.GetComponentInChildren<Animator>();
         if (parentAnimator != null) parentAnimator.enabled = true;
 
-        if (parentRigidbody == null) {
-            parentRigidbody = parentObject.AddComponent<Rigidbody>();
-        }
+        parentRigidbody = parentRigidbody != null ? parentRigidbody : parentObject.AddComponent<Rigidbody>();
 
         ResetRigidbodyForces(parentObject);
         DisableAllColliders(parentObject);
@@ -75,9 +65,7 @@ public class PlayerCollider : MonoBehaviour {
         Rigidbody spineRb = GetRigidbodyByName(punchableObject, "mixamorig:Spine1");
         if (spineRb != null) {
             Animator punchableAnimator = punchableObject.GetComponentInChildren<Animator>();
-            if (punchableAnimator != null) {
-                punchableAnimator.enabled = false;
-            }
+            if (punchableAnimator != null) punchableAnimator.enabled = false;
 
             ApplyPunchForce(spineRb, punchableObject.transform.position - transform.position);
 
@@ -90,7 +78,7 @@ public class PlayerCollider : MonoBehaviour {
 
     private void ApplyPunchForce(Rigidbody spineRb, Vector3 forceDirection) {
         forceDirection.Normalize();
-        Vector3 punchForceDirection = -forceDirection * punchForce + Vector3.up;
+        Vector3 punchForceDirection = -forceDirection * punchForce + Vector3.up * punchForce;
         spineRb.AddForce(punchForceDirection, ForceMode.Impulse);
 
         Quaternion lookRotation = Quaternion.LookRotation(-forceDirection);
